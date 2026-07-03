@@ -1,0 +1,6 @@
+.DS_Store
+.claude/
+# AI 원본 생성 이미지(이미 cctv/ 로 복사됨) — 배포에 불필요
+stitch_ai_crime_scene_generator/
+# 파일명 공백이 있는 중복 원본(= monitor-start.png)
+monitor start . jpg.png

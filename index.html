@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SECTOR-7 // 통합관제 시스템</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<!-- 시작은 '원경(intro-off)' 상태: 모니터가 멀리 보이고 꺼져 있음 -->
+<body class="intro-off">
+
+  <!-- ============================================================
+       .camera : 카메라(시점). 원경→근경 이동(돌리 인) 시 미세한 흔들림 적용.
+  ============================================================= -->
+  <div class="camera" id="camera">
+
+    <!-- .desk : 배경 이미지(관제실+모니터). --dolly 값으로 원경/근경 전환 -->
+    <div class="desk">
+
+      <!-- 모니터 검은 화면 영역 -->
+      <div class="monitor-screen">
+
+        <!-- 가상 해상도 캔버스: CCTV 앱이 이 안에서 동작 -->
+        <div class="screen-content" id="screen-content">
+
+          <div class="crt-overlay" aria-hidden="true">
+            <div class="scanlines"></div>
+            <div class="vignette"></div>
+            <div class="flicker"></div>
+          </div>
+
+          <!-- 1) 부팅 화면 -->
+          <section id="boot-screen" class="screen boot active">
+            <div class="power-flash" aria-hidden="true"></div>
+            <div class="boot-content">
+              <div id="standby" class="standby">▮ STANDBY</div>
+              <pre id="boot-log" class="boot-log"></pre>
+              <button id="enter-btn" class="enter-btn hidden">▸ 시스템 접속</button>
+            </div>
+          </section>
+
+          <!-- 1.5) 보안 코드 입력 (관제 시스템 접속 인증) -->
+          <section id="auth-screen" class="screen auth-screen">
+            <div class="auth-box">
+              <div class="auth-title">SECTOR-7 // 접근 제한 구역</div>
+              <div class="auth-sub">관제 시스템에 접속하려면 보안 코드를 입력하십시오.</div>
+              <div class="auth-row">
+                <span class="auth-label">ACCESS&nbsp;CODE</span>
+                <input id="auth-input" class="auth-input" type="text" maxlength="8"
+                       autocomplete="off" spellcheck="false" inputmode="numeric"
+                       placeholder="■ ■ ■ ■" />
+              </div>
+              <button id="auth-submit" class="sys-btn">▸ 인증</button>
+              <div id="auth-msg" class="auth-msg"></div>
+              <div class="auth-hint" id="auth-hint"></div>
+            </div>
+          </section>
+
+          <!-- [추가] 1.7) 사건 브리핑 (게임 시작 전 목표 안내) -->
+          <section id="briefing-screen" class="screen briefing-screen">
+            <div class="brief-box">
+              <div class="brief-head">
+                <span class="brief-tag">CASE FILE · CASE-S7-0714</span>
+                <h2 class="brief-title">사건 브리핑</h2>
+              </div>
+              <div class="brief-sec">
+                <div class="brief-label">■ 사건 개요</div>
+                <p class="brief-text">
+                  야간, 관할 구역 여러 지점에서 동일 인물로 추정되는 용의자의 이동 정황이 포착됨.
+                  각 CCTV에는 용의자의 특징이 <b>하나씩</b> 남아 있음. 흩어진 특징을 모아
+                  동일 인물임을 증명하고 사건 현장을 특정하는 것이 임무다.
+                </p>
+              </div>
+              <div class="brief-sec">
+                <div class="brief-label">■ 용의자 (일부 확인됨)</div>
+                <ul class="brief-suspect">
+                  <li><span>성별</span><b>남성 추정</b></li>
+                  <li><span>연령</span><b>20 ~ 30대</b></li>
+                  <li><span>특이사항</span><b>어두운 색 후드 차림</b></li>
+                  <li><span>세부 특징</span><b class="brief-unknown">CCTV로 직접 확인 필요</b></li>
+                </ul>
+              </div>
+              <div class="brief-sec">
+                <div class="brief-label">■ 확인할 특징 (6)</div>
+                <p class="brief-text brief-traits">의상 · 소지품 · 신발 · 걸음걸이 · 인상착의 · 이동 시간</p>
+              </div>
+              <button id="briefing-start" class="sys-btn brief-btn">▸ 관제 시작</button>
+            </div>
+          </section>
+
+          <!-- 2) 메인 관제 모니터 -->
+          <section id="main-screen" class="screen">
+            <header class="hud-top">
+              <div class="hud-left">
+                <span class="rec-dot"></span> REC
+                <span class="hud-sep">|</span>
+                SECTOR-7 / 야간순찰
+              </div>
+              <div class="hud-right">
+                <span id="clock" class="clock">--:--:--</span>
+                <span class="hud-sep">|</span>
+                <span id="evidence-counter">단서 0 / 0</span>
+                <span class="hud-sep">|</span>
+                <span id="viewed-counter" title="모두 확인하면 사건 분석 시작">확인 0 / 0</span>
+              </div>
+            </header>
+
+            <div id="cctv-grid" class="cctv-grid"></div>
+
+            <footer class="hud-bottom">
+              <span class="blink">●</span> 채널 선택 후 ENTER... 마우스로 화면을 확인하십시오
+            </footer>
+          </section>
+
+          <!-- 3) 확대(상세) 화면 -->
+          <section id="detail-screen" class="screen">
+            <header class="hud-top">
+              <button id="back-btn" class="sys-btn">◂ 관제화면으로</button>
+              <div class="hud-right">
+                <span id="detail-label" class="detail-label">CH-00</span>
+                <span class="hud-sep">|</span>
+                <span class="rec-dot"></span> LIVE
+              </div>
+            </header>
+
+            <div class="detail-stage">
+              <div id="detail-scene" class="detail-scene"></div>
+            </div>
+
+            <footer class="hud-bottom">
+              <span id="detail-hint">화면 속 움직임을 정밀 분석하십시오...</span>
+            </footer>
+          </section>
+
+          <!-- [추가] Final Investigation 화면 (좌: 수집 증거 / 우: 최종 보고서) -->
+          <section id="final-screen" class="screen final-screen">
+            <header class="hud-top">
+              <button id="final-back" class="sys-btn">◂ 관제화면으로</button>
+              <div class="hud-right">
+                <span class="rec-dot"></span>
+                <span class="detail-label">FINAL INVESTIGATION</span>
+              </div>
+            </header>
+            <div class="final-body">
+              <div class="final-col">
+                <h3 class="final-h">▣ EVIDENCE BOARD · 수집된 특징</h3>
+                <div id="evidence-list" class="evidence-list"></div>
+              </div>
+              <div class="final-col">
+                <h3 class="final-h">▣ FINAL REPORT · 증거 기반 특정</h3>
+                <div class="report-scroll">
+                  <div class="report-sub">동일 인물 판정 근거</div>
+                  <ul id="report-reason" class="report-reason"></ul>
+                  <div id="report-verdict" class="report-verdict"></div>
+                </div>
+                <div class="report-submit-wrap">
+                  <button id="report-submit" class="sys-btn">▸ 사건 보고서 제출</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- [추가] AI 얼굴 대조 화면 (후보 A~D 중 특정) -->
+          <section id="ai-screen" class="screen ai-screen">
+            <header class="hud-top">
+              <button id="ai-back" class="sys-btn">◂ 관제화면으로</button>
+              <div class="hud-right">
+                <span class="rec-dot"></span>
+                <span class="detail-label">AI FACE MATCH · 얼굴 대조</span>
+              </div>
+            </header>
+            <div class="ai-body">
+              <div class="ai-profile">
+                <span class="ai-profile-label">■ 확보 단서 프로필 (CCTV 화질 낮음 · 얼굴 불명확)</span>
+                <ul id="ai-profile-list" class="ai-profile-list"></ul>
+              </div>
+              <div id="ai-candidates" class="ai-candidates"></div>
+              <div id="ai-feedback" class="ai-feedback"></div>
+              <div class="ai-actions">
+                <button id="ai-to-report" class="sys-btn" disabled>▸ 최종 보고서 작성</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- [추가] Investigation Complete 안내 오버레이 -->
+          <div id="invest-complete" class="case-alert">
+            <div class="case-alert-inner invest-inner">
+              <div class="case-glitch">INVESTIGATION COMPLETE</div>
+              <p class="case-sub">모든 감시 구역 확인 완료.<br>수집된 증거를 바탕으로 사건을 분석합니다.</p>
+              <button id="invest-start" class="sys-btn">▸ 사건 분석 시작</button>
+            </div>
+          </div>
+
+          <!-- 인물/단서 정보 카드 -->
+          <div id="info-card" class="info-card-wrap">
+            <div class="info-card">
+              <button id="card-close" class="card-close" aria-label="닫기">✕</button>
+              <div class="card-photo" id="card-photo"></div>
+              <div class="card-body">
+                <h2 id="card-name" class="card-name">UNKNOWN</h2>
+                <ul class="card-fields" id="card-fields"></ul>
+                <button id="card-analyze" class="sys-btn analyze-btn">▸ 다음 항목 분석</button>
+                <p id="card-desc" class="card-desc"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 사건 발견 경보 -->
+          <div id="case-alert" class="case-alert">
+            <div class="case-alert-inner">
+              <div class="case-glitch" id="case-title">EVIDENCE DETECTED</div>
+              <p id="case-sub" class="case-sub"></p>
+              <button id="case-close" class="sys-btn">▸ 보고서 닫기</button>
+            </div>
+          </div>
+
+          <!-- [추가] Objective 패널 (관제/확대 화면에서 상시 표시) -->
+          <div id="objective-panel">
+            <div class="obj-top">
+              <span class="obj-title">OBJECTIVE</span>
+              <span class="obj-count">특징 <span id="obj-progress">0 / 6</span></span>
+            </div>
+            <ul id="obj-list" class="obj-list"></ul>
+            <div class="obj-foot">
+              <span id="obj-hint">미확인 특징을 다른 CCTV에서 찾으십시오</span>
+              <button id="obj-report" class="obj-report-btn">보고서 ▸</button>
+            </div>
+          </div>
+
+        </div><!-- /.screen-content -->
+
+      </div><!-- /.monitor-screen -->
+    </div><!-- /.desk -->
+
+    <!-- ============================================================
+         시작 레이어 — 'monitor start' 원경 사진(관제실 + 의자).
+         의자를 클릭하면 모니터로 다가가(줌인) 클로즈업으로 전환됨.
+         배경 사진을 바꾸려면 .intro-img 의 background(아래 style.css) 교체.
+    ============================================================= -->
+    <div class="intro-scene" id="intro-scene">
+      <div class="intro-img" id="intro-img">
+        <!-- 사진 속 모니터 화면 위치 — 전원 '픽' 점등 연출 -->
+        <div class="intro-mon" id="intro-mon"></div>
+        <!-- 사진 속 의자 위치 — 클릭하면 착석(다가가기) -->
+        <button class="chair-zone" id="chair-zone" aria-label="의자에 앉기"></button>
+        <div class="chair-hint" id="chair-hint">▾&ensp;의자에 앉기</div>
+      </div>
+    </div>
+
+  </div><!-- /.camera -->
+
+  <script src="script.js"></script>
+</body>
+</html>
